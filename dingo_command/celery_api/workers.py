@@ -565,7 +565,7 @@ def deploy_kubernetes(cluster: ClusterObject, cluster_tf: ClusterTFVarsObject, l
                 private_key_content = key_file.read()
         
         print(f"start deploy kubernetes cluster: {str(cluster.id)}")
-        thread, runner = run_playbook(playbook_file, host_file, ansible_dir, ssh_key=private_key_content, netns=netns,str(cluster.id))
+        thread, runner = run_playbook(playbook_file, host_file, ansible_dir, ssh_key=private_key_content, netns=netns, cluster_id=str(cluster.id))
         # 处理并打印事件日志
         runtime_bool = False
         etcd_bool = False
@@ -1872,7 +1872,7 @@ def delete_node(self, cluster_id, cluster_name, node_list, instance_list, extrav
                 with open(key_file_path, 'r') as key_file:
                     private_key_content = key_file.read()
             thread, runner = run_playbook(playbook_file, host_file, ansible_dir,
-                                          ssh_key=private_key_content, extravars=extravars,  netns=netns, cluster_id)
+                                          ssh_key=private_key_content, extravars=extravars,  netns=netns, cluster_id=cluster_id)
             # 处理并打印事件日志
             runtime_bool = False
             etcd_bool = False

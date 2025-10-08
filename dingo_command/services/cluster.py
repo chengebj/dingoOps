@@ -1228,6 +1228,8 @@ class TaskService:
                 # 根据task名称匹配TaskMessage枚举值添加中文标题
                 'title': task.value
             }
+            if len(tasks) > 0:
+                task_dict['state'] = "success"
             tasks_with_title.append(task_dict)
         return tasks_with_title
         
