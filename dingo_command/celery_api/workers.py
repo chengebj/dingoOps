@@ -565,7 +565,7 @@ def deploy_kubernetes(cluster: ClusterObject, cluster_tf: ClusterTFVarsObject, l
                 private_key_content = key_file.read()
         
         print(f"start deploy kubernetes cluster: {str(cluster.id)}")
-        thread, runner = run_playbook(playbook_file, host_file, ansible_dir, ssh_key=private_key_content, netns=netns)
+        thread, runner = run_playbook(playbook_file, host_file, ansible_dir, ssh_key=private_key_content, netns=netns,str(cluster.id))
         # 处理并打印事件日志
         runtime_bool = False
         etcd_bool = False
@@ -728,8 +728,9 @@ def scale_kubernetes(cluster_id, scale_nodes, task_id, netns: str = None, app_cr
             target_dir = os.path.join(WORK_DIR, "ansible-deploy", "inventory", str(cluster_id), "group_vars", "k8s_cluster")
             cluster_file = os.path.join(target_dir, "k8s-cluster.yml")
             subprocess.run(["sed", "-i", "s/skip_download:.*/skip_download: true/", cluster_file], check=True)
+        print(f"start scale kubernetes cluster: {str(cluster_id)} with nodes: {scale_nodes} netns: {netns}")
         thread, runner = run_playbook(playbook_file, host_file, ansible_dir,
-                                      ssh_key=private_key_content, limit=scale_nodes,  netns=netns)
+                                      ssh_key=private_key_content, limit=scale_nodes,  netns=netns, cluster_id=cluster_id)
         # 处理并打印事件日志
         runtime_bool = False
         etcd_bool = False
@@ -1871,7 +1872,7 @@ def delete_node(self, cluster_id, cluster_name, node_list, instance_list, extrav
                 with open(key_file_path, 'r') as key_file:
                     private_key_content = key_file.read()
             thread, runner = run_playbook(playbook_file, host_file, ansible_dir,
-                                          ssh_key=private_key_content, extravars=extravars,  netns=netns)
+                                          ssh_key=private_key_content, extravars=extravars,  netns=netns, cluster_id)
             # 处理并打印事件日志
             runtime_bool = False
             etcd_bool = False
@@ -2365,16 +2366,24 @@ def add_existing_nodes(self, cluster_id, server_details, user, private_key: str 
             for i, server_detail in enumerate(server_details):
                 
                 # 创建Node记录
+                #生成4位随机字符串
+                # 生成4位随机字符串
+                def generate_random_string():
+                    return ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+
+                # 设置 node_db.name
+                node_db.name = f"{cluster_name}-existed-node-{generate_random_string()}"
+
                 node_db = NodeInfo()
                 node_db.id = str(uuid.uuid4())
                 node_db.cluster_id = cluster_id
                 node_db.server_id = server_detail.get("id")
                 node_db.cluster_name = cluster_name
-                node_db.name = f"{cluster_name}-existing-node-{i+1}"
+                
                 node_db.role = "worker"  # 默认作为worker节点
                 node_db.status = "joining"
                 node_db.cpu = server_detail.get("flavor", {}).get("vcpus", 0)
-                node_db.mem = server_detail.get("flavor", {}).get("ram", 0) // 1024  # MB转GB
+                node_db.mem = server_detail.get("flavor", {}).get("ram", 0)  # MB转GB
                 node_db.disk = server_detail.get("flavor", {}).get("disk", 0)
                 node_db.gpu = 0  # 默认为0，可根据需要扩展
                 node_db.region = cluster_db.region_name
@@ -2390,7 +2399,7 @@ def add_existing_nodes(self, cluster_id, server_details, user, private_key: str 
                     if isinstance(ips, list) and ips:
                         admin_address = ips[0].get("addr")
                 node_db.admin_address = admin_address
-                node_db.image = server_detail.get("image", {}).get("id", "")
+                node_db.image = server_detail.get("image", {}).get("id", "") if isinstance(server_detail.get("image", {}), dict) else ""
                 session.add(node_db)
                 
                 # 创建Instance记录
@@ -2399,7 +2408,7 @@ def add_existing_nodes(self, cluster_id, server_details, user, private_key: str 
                 instance_db.cluster_id = cluster_id
                 instance_db.server_id = server_detail.get("id")
                 instance_db.cluster_name = cluster_name
-                instance_db.name = server_detail.get("name", f"existing-server-{i+1}")
+                instance_db.name = server_detail.get("name", f"{cluster_name}-existed-node-{generate_random_string()}")
                 instance_db.server_id = server_detail.get("id")
                 instance_db.node_type = "vm"
                 instance_db.status = "joining"
@@ -2408,7 +2417,7 @@ def add_existing_nodes(self, cluster_id, server_details, user, private_key: str 
                 instance_db.user = user
                 instance_db.password = password
                 instance_db.flavor_id = server_detail.get("flavor", {}).get("id", "")
-                instance_db.image_id = server_detail.get("image", {}).get("id", "")
+                instance_db.image_id = server_detail.get("image", {}).get("id", "") if isinstance(server_detail.get("image", {}), dict) else ""
                 instance_db.create_time = datetime.now()
                 instance_db.update_time = datetime.now()
                 session.add(instance_db)

@@ -251,9 +251,14 @@ async def add_node(cluster_id:str, servers: List[ExistingNodeObject], token: str
                 cmd = []
                 if server.private_key and server.private_key != "":
                     
-                    #将私钥写入临时文件
-                    private_key_path = os.path.join("/tmp", str(cluster_id), "private_key.pem")
-                    with open(private_key_path, "w") as f:
+                    private_key_dir = os.path.join("/tmp", str(cluster_id))
+                    # Create the directory if it doesn't exist
+                    os.makedirs(private_key_dir, exist_ok=True)
+                    import re
+                    server.private_key = re.sub(r'\r\n?', '\n', server.private_key).strip() + '\n'
+                    # Define the full path for the private key file
+                    private_key_path = os.path.join(private_key_dir, "private_key.pem")
+                    with open(private_key_path, "w",newline='\n', encoding='utf-8') as f:
                         f.write(server.private_key)
                     os.chmod(private_key_path, 0o600)
                     cmd = [
