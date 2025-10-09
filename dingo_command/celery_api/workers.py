@@ -1954,6 +1954,41 @@ def delete_node(self, cluster_id, cluster_name, node_list, instance_list, extrav
                 task_info.detail = "Ansible remove node failed, please check log"
                 update_task_state(task_info)
                 raise Exception(f"Ansible remove node failed, please check log")
+            if not runtime_bool and not etcd_bool and not controller_bool and not worker_bool:
+                runtime_task.end_time = datetime.fromtimestamp(datetime.now().timestamp())
+                runtime_task.state = "success"
+                runtime_task.detail = TaskService.TaskDetail.remove_pre_install.value
+                update_task_state(runtime_task)
+                etcd_task = Taskinfo(task_id=task_id, cluster_id=cluster_id, state="progress",
+                                     start_time=datetime.fromtimestamp(datetime.now().timestamp()),
+                                     msg=TaskService.TaskRemoveNodeMessage.remove_from_cluster.name)
+                TaskSQL.insert(etcd_task)
+                etcd_task.end_time = datetime.fromtimestamp(datetime.now().timestamp())
+                etcd_task.state = "success"
+                etcd_task.detail = TaskService.TaskDetail.remove_from_cluster.value
+                update_task_state(etcd_task)
+                # 写入下一个任务
+                control_plane_task = Taskinfo(task_id=task_id, cluster_id=cluster_id, state="progress",
+                                              start_time=datetime.fromtimestamp(datetime.now().timestamp()),
+                                              msg=TaskService.TaskRemoveNodeMessage.remove_cri_pods.name)
+                TaskSQL.insert(control_plane_task)
+                control_plane_task.end_time = datetime.fromtimestamp(datetime.now().timestamp())
+                control_plane_task.state = "success"
+                control_plane_task.detail = TaskService.TaskDetail.remove_cri_pods.value
+                update_task_state(control_plane_task)
+                # 写入下一个任务
+                worker_task = Taskinfo(task_id=task_id, cluster_id=cluster_id, state="progress",
+                                       start_time=datetime.fromtimestamp(datetime.now().timestamp()),
+                                       msg=TaskService.TaskRemoveNodeMessage.remove_iptables.name)
+                TaskSQL.insert(worker_task)
+                worker_task.end_time = datetime.fromtimestamp(datetime.now().timestamp())
+                worker_task.state = "success"
+                worker_task.detail = TaskService.TaskDetail.remove_iptables.value
+                update_task_state(worker_task)
+                component_task = Taskinfo(task_id=task_id, cluster_id=cluster_id, state="progress",
+                                          start_time=datetime.fromtimestamp(datetime.now().timestamp()),
+                                          msg=TaskService.TaskRemoveNodeMessage.remove_file_dirs.name)
+                TaskSQL.insert(component_task)
 
         # # 2、执行完删除k8s这些节点之后，再执行terraform销毁这些节点（这里是单独修改output.json文件还是需要通过之前生成的output.json文件生成）
         # 在这里添加需要排除重新创建的虚拟机，从output文件里面取得nodes再和数据库里面的nodes做比较，数据里面没有的就在state删除
@@ -2404,7 +2439,7 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
                         admin_address = ips[0].get("addr")
                 node_db.admin_address = admin_address
                 node_db.image = server_detail.get("image", {}).get("id", "") if isinstance(server_detail.get("image", {}), dict) else ""
-                session.add(node_db)
+
                 
                 # 创建Instance记录
                 instance_db = Instance()
@@ -2412,7 +2447,7 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
                 instance_db.cluster_id = cluster_id
                 instance_db.server_id = server_detail.get("id")
                 instance_db.cluster_name = cluster_name
-                instance_db.name = f"{cluster_name}-existed-node-{generate_random_string()}"
+                instance_db.name = node_db.name
                 instance_db.server_id = server_detail.get("id")
                 instance_db.node_type = "vm"
                 instance_db.status = "joining"
@@ -2424,6 +2459,8 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
                 instance_db.image_id = server_detail.get("image", {}).get("id", "") if isinstance(server_detail.get("image", {}), dict) else ""
                 instance_db.create_time = datetime.now()
                 instance_db.update_time = datetime.now()
+                node_db.instance_id = instance_db.id
+                session.add(node_db)
                 session.add(instance_db)
                 
                 node_instances.append({
@@ -2465,6 +2502,7 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
 
         # 8. 执行Ansible扩容
         if node_names:
+            time.sleep(2)
             task_info.end_time = datetime.fromtimestamp(datetime.now().timestamp())
             task_info.state = "success"
             task_info.detail = "check infrastructure successfully"
@@ -2514,12 +2552,6 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
                     cluster.mem += ni["node"].mem
                     cluster.gpu += ni["node"].gpu
         
-        # 11. 更新任务状态为成功
-        task_info.end_time = datetime.fromtimestamp(datetime.now().timestamp())
-        task_info.state = "success"
-        task_info.detail = f"成功添加 {len(server_details)} 个节点到集群"
-        update_task_state(task_info)
-        
         return True
         
     except SoftTimeLimitExceeded:
@@ -2536,13 +2568,6 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
     except Exception as e:
         # 处理错误
         print(f"添加已有节点错误: {str(e)}")
-        
-        # 更新任务状态为失败
-        if 'task_info' in locals():
-            task_info.end_time = datetime.fromtimestamp(datetime.now().timestamp())
-            task_info.state = "failed"
-            task_info.detail = f"添加节点失败: {str(e)}"
-            update_task_state(task_info)
         
         # 更新集群状态
         query_params = {"id": cluster_id}
