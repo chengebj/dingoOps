@@ -811,7 +811,8 @@ class ClusterService:
             # 3. 调用Celery任务异步处理
             result = celery_app.send_task(
                 "dingo_command.celery_api.workers.add_existing_nodes", 
-                args=[cluster_id, server_details, user, private_key if private_key else "", password if password else "", network_id if network_id else ""]
+                args=[cluster_id, cluster.name, server_details, user, private_key if private_key else "",
+                      password if password else "", network_id if network_id else ""]
             )
             
             return {

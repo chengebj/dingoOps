@@ -2331,18 +2331,19 @@ def delete_instance(self, openstack_info, instance):
         raise ValueError(e)
 
 @celery_app.task(bind=True,time_limit=TASK_TIMEOUT, soft_time_limit=SOFT_TASK_TIMEOUT)
-def add_existing_nodes(self, cluster_id, server_details, user, private_key: str = "", password: str = "", network_id: str = ""):
+def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, private_key: str = "", password: str = "",
+                       network_id: str = ""):
     """将已有的虚拟机节点添加到K8s集群中"""
     try:
         task_id = str(self.request.id)
-        
+        update_task_info(task_id, cluster_id, cluster_name)
         # 1. 创建任务记录
         task_info = Taskinfo(
             task_id=task_id, 
             cluster_id=cluster_id, 
             state="progress",
             start_time=datetime.fromtimestamp(datetime.now().timestamp()),
-            msg="开始添加已有节点到集群"
+            msg=TaskService.TaskScaleNodeMessage.scale_instructure.name
         )
         TaskSQL.insert(task_info)
         
@@ -2370,7 +2371,7 @@ def add_existing_nodes(self, cluster_id, server_details, user, private_key: str 
                 #生成4位随机字符串
                 # 生成4位随机字符串
                 def generate_random_string():
-                    return ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+                    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
 
                 node_db = NodeInfo()
                 node_db.id = str(uuid.uuid4())
@@ -2462,9 +2463,22 @@ def add_existing_nodes(self, cluster_id, server_details, user, private_key: str 
 
         # 8. 执行Ansible扩容
         if node_names:
+            task_info.end_time = datetime.fromtimestamp(datetime.now().timestamp())
+            task_info.state = "success"
+            task_info.detail = "check infrastructure successfully"
+            update_task_state(task_info)
+            task_info = Taskinfo(task_id=task_id, cluster_id=cluster_id, state="progress",
+                                 start_time=datetime.fromtimestamp(datetime.now().timestamp()),
+                                 msg=TaskService.TaskScaleNodeMessage.scale_pre_install.name)
+            TaskSQL.insert(task_info)
+            time.sleep(3)
+            task_info.end_time = datetime.fromtimestamp(datetime.now().timestamp())
+            task_info.state = "success"
+            task_info.detail = "install prepare success"
+            update_task_state(task_info)
             os.environ['CURRENT_CLUSTER_DIR']=cluster_dir
             scale_nodes = ",".join([name.split(":")[0] for name in node_names])
-            print("准备扩容的节点: %s", scale_nodes)
+            print("准备扩容的节点: ", scale_nodes)
             netns = ""
             if network_id and network_id != "":
                 netns = "qdhcp-" + network_id
