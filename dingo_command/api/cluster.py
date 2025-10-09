@@ -266,7 +266,7 @@ async def add_node(cluster_id:str, servers: List[ExistingNodeObject], token: str
                         "-i", private_key_path,
                         "-o", "StrictHostKeyChecking=no",
                         "-o", "ConnectTimeout=10",
-                        f"{node_ip}",
+                        f"{server.user}@{node_ip}",
                         "echo 'SSH connection successful'"
                     ]
                     

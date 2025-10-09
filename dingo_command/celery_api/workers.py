@@ -2410,7 +2410,7 @@ def add_existing_nodes(self, cluster_id, cluster_name, server_details, user, pri
                 instance_db.cluster_id = cluster_id
                 instance_db.server_id = server_detail.get("id")
                 instance_db.cluster_name = cluster_name
-                instance_db.name = server_detail.get("name", f"{cluster_name}-existed-node-{generate_random_string()}")
+                instance_db.name = f"{cluster_name}-existed-node-{generate_random_string()}"
                 instance_db.server_id = server_detail.get("id")
                 instance_db.node_type = "vm"
                 instance_db.status = "joining"
