@@ -1443,7 +1443,9 @@ def create_k8s_cluster(self, cluster_tf_dict, cluster_dict, node_list, instance_
             for gpu_count_info in instances_gpu_count_info:
                 if gpu_count_info.resource_gpu_count is not None:
                     c.gpu = gpu_count_info.resource_gpu_count + c.gpu
-        ClusterSQL.update_cluster(c)
+        print(f"start update cluster status {res}")
+        res = ClusterSQL.update_cluster(c)
+        print(f"update cluster status to running {res}")
         results = install_app_chart(cluster.charts, cluster_dict["id"])
         print("results is:", results)
 

@@ -285,6 +285,8 @@ async def add_node(cluster_id:str, servers: List[ExistingNodeObject], token: str
                     cmd = ["ip", "netns", "exec", netns] + cmd
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
                 if result.returncode != 0:
+                    print(f"Command failed with return code {cmd}")
+                    print(result.stderr)
                     raise Exception(f"SSH connection failed: {result.stderr}")
                 server_details.append(dict(server_detail))
             except Exception as e:
